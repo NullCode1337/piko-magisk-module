@@ -1,3 +1,4 @@
+Instagram: 435.0.0.37.76  
 Twitter: 12.7.1-release.0  
 
 Install [Microg](https://github.com/MorpheApp/MicroG-RE/) for non-root YouTube and YT Music APKs  
