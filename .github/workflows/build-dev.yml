@@ -1,0 +1,79 @@
+name: Build Dev Modules
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *"
+
+jobs:
+  run:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: "zulu"
+          java-version: "21"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Should build?
+        id: should_build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # only skip on the scheduled trigger if crimera/piko has no newer pre-release than our last dev tag
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "SHOULD_BUILD=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LATEST_DEV=$(gh api "repos/crimera/piko/releases" -q '.[0].tag_name' 2>/dev/null || echo "")
+          LAST_BUILT=$(gh release view dev --json body -q '.body' 2>/dev/null | grep -m1 -oE 'crimera/piko@[^ ]+' | cut -d@ -f2 || echo "")
+          if [ -n "$LATEST_DEV" ] && [ "$LATEST_DEV" = "$LAST_BUILT" ]; then
+            echo "no new crimera/piko pre-release, skipping"
+            echo "SHOULD_BUILD=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "SHOULD_BUILD=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build modules/APKs (dev/pre-release patches)
+        if: ${{ steps.should_build.outputs.SHOULD_BUILD == 1 }}
+        run: ./build.sh config-dev.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: $GITHUB_REPOSITORY
+          NEXT_VER_CODE: ${{ github.run_number }}
+
+      - name: Get output
+        if: ${{ steps.should_build.outputs.SHOULD_BUILD == 1 }}
+        id: get_output
+        run: |
+          LATEST_DEV=$(gh api "repos/crimera/piko/releases" -q '.[0].tag_name' 2>/dev/null || echo "unknown")
+          echo "PIKO_DEV_TAG=$LATEST_DEV" >> "$GITHUB_OUTPUT"
+          DELIM="$(openssl rand -hex 8)"
+          echo "BUILD_LOG<<${DELIM}" >> "$GITHUB_OUTPUT"
+          {
+            echo "> ⚠️ Pre-release build against \`crimera/piko@${LATEST_DEV}\`. May be unstable, use at your own risk."
+            echo
+            cat build.md
+          } >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload dev release
+        if: ${{ steps.should_build.outputs.SHOULD_BUILD == 1 }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: ${{ steps.get_output.outputs.BUILD_LOG }}
+        run: |
+          if gh release view dev >/dev/null 2>&1; then
+            gh release edit dev --title "Dev build (pre-release)" --notes "$BODY" --prerelease
+            gh release upload dev ./build/* --clobber
+          else
+            gh release create dev ./build/* --title "Dev build (pre-release)" --notes "$BODY" --prerelease
+          fi
