@@ -1,6 +1,6 @@
 {
   "version": "v12.7.1-release.0 (patches 3.8.0.mpp)",
-  "versionCode": 3,
-  "zipUrl": "https://github.com/NullCode1337/piko-magisk-module/releases/download/3/twitter-piko-module-v12.7.1-release.0-all.zip",
+  "versionCode": 4,
+  "zipUrl": "https://github.com/NullCode1337/piko-magisk-module/releases/download/4/twitter-piko-module-v12.7.1-release.0-all.zip",
   "changelog": "https://raw.githubusercontent.com/NullCode1337/piko-magisk-module/update/build.md"
 }
