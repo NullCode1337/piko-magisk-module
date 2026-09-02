@@ -1,6 +1,6 @@
-Instagram: 435.0.0.37.76  
-Instagram-Clone: 435.0.0.37.76  
-Twitter: 12.7.1-release.0  
+Instagram: 439.0.0.37.89  
+Instagram-Clone: 439.0.0.37.89  
+Twitter: 12.11.0-release.0  
 
 Install [Microg](https://github.com/MorpheApp/MicroG-RE/) for non-root YouTube and YT Music APKs  
 Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach YouTube and YT Music modules from Play Store  
