@@ -1,35 +1,42 @@
-enable-module-update = false
+enable-module-update = true
 parallel-jobs = 1
 patches-version = "dev"
+channel = "dev" # affects release names (e.g. 'piko-dev') and scopes auto-update JSONs to update/dev/
+
+# Stock APK versions and the pinned 'Piko' pre-release tag are read from the
+# 'binaries' release body (see CONFIG.md). Set 'version' to "auto-from-binaries"
+# and use '{version}' in any direct-dlurl to pick them up automatically.
+# Add 'Piko=<tag>' to the binaries body to pin a specific pre-release instead
+# of always pulling the latest.
 
 [Twitter]
 patches-source = "crimera/piko"
 cli-source = "MorpheApp/morphe-cli"
-rv-brand = "Piko (dev)"
+rv-brand = "Piko"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/x-corp/twitter/"
 uptodown-dlurl = "https://twitter.en.uptodown.com/android"
-direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/1/com.twitter.android-12.11.0-release.0-all.apkm"
+direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/binaries/com.twitter.android-{version}-all.apkm"
 build-mode = "module"
-version = "12.11.0-release.0"
+version = "auto-from-binaries"
 #include-stock = "split"
 
 [Instagram]
 cli-source = "MorpheApp/morphe-cli"
 patches-source = "crimera/piko"
-rv-brand = "Piko (dev)"
+rv-brand = "Piko"
 build-mode = "both"
 arch = "arm64-v8a"
 #include-stock = "split"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/instagram/instagram-instagram/"
 uptodown-dlurl = "https://instagram.en.uptodown.com/android"
-direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/1/com.instagram.android-435.0.0.37.89-arm64-v8a.apkm"
-version = "435.0.0.37.89"
+direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/binaries/com.instagram.android-{version}-arm64-v8a.apkm"
+version = "auto-from-binaries"
 
 [Instagram-Clone]
 app-name = "Instagram Clone"
 cli-source = "MorpheApp/morphe-cli"
 patches-source = "crimera/piko"
-rv-brand = "Piko (dev)"
+rv-brand = "Piko"
 build-mode = "both"
 arch = "arm64-v8a"
 #include-stock = "split"
@@ -37,5 +44,5 @@ included-patches = "'Clone'"
 module-prop-name = "instagram-clone-dev-jhc"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/instagram/instagram-instagram/"
 uptodown-dlurl = "https://instagram.en.uptodown.com/android"
-direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/1/com.instagram.android-435.0.0.37.89-arm64-v8a.apkm"
-version = "435.0.0.37.89"
+direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/binaries/com.instagram.android-{version}-arm64-v8a.apkm"
+version = "auto-from-binaries"

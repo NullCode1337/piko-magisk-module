@@ -34,7 +34,44 @@ DEF_CLI_VER=$(toml_get "$main_config_t" cli-version) || DEF_CLI_VER="latest"
 DEF_PATCHES_SRC=$(toml_get "$main_config_t" patches-source) || DEF_PATCHES_SRC="ReVanced/revanced-patches"
 DEF_CLI_SRC=$(toml_get "$main_config_t" cli-source) || DEF_CLI_SRC="ReVanced/revanced-cli"
 DEF_RV_BRAND=$(toml_get "$main_config_t" rv-brand) || DEF_RV_BRAND="ReVanced"
+BUILD_CHANNEL=$(toml_get "$main_config_t" channel) || BUILD_CHANNEL=""
+export BUILD_CHANNEL
 mkdir -p "$TEMP_DIR" "$BUILD_DIR"
+
+# Read Piko pin (if any) early so --config-update can also honor it.
+# Build a channeled overrides object: { "Piko": {"any": "v2.0.0", "dev": "v3.0.0"},
+# "Instagram": {"any": "435.0.0.37.76", "dev": "435.0.0.37.89"}, ... }.
+# Each entry is the channeled map; the per-channel value is resolved just
+# before use so the same body can drive both stable and dev builds.
+PIKO_PINNED=""
+overrides_by_channel="{}"
+if [ -n "${GITHUB_REPOSITORY:-}" ] && BIN_BODY=$(get_binaries_body 2>/dev/null); then
+	overrides_by_channel=$(parse_binaries_overrides "$BIN_BODY" | jq -s '
+		group_by(.key) | map(
+			. as $rows |
+			($rows[0].key) as $k |
+			{
+				($k): (
+					($rows | map(select(.channel == "stable") | .value) | first) as $s |
+					($rows | map(select(.channel == "dev")    | .value) | first) as $d |
+					($rows | map(select(.channel == "null")   | .value) | first) as $a |
+					{stable: $s, dev: $d, any: $a}
+				)
+			}
+		) | add // {}
+	') || overrides_by_channel="{}"
+	[ -z "$overrides_by_channel" ] && overrides_by_channel="{}"
+	# Resolve the Piko pin for the active channel. The unprefixed `Piko=...`
+	# entry is a stable-channel-only fallback — on the dev channel it must
+	# not shadow auto-detection of the latest pre-release; only an explicit
+	# `dev.Piko=...` pins the dev build.
+	if [ "${BUILD_CHANNEL:-}" = "dev" ]; then
+		PIKO_PINNED=$(jq -r '.Piko.dev // ""' <<<"$overrides_by_channel")
+	else
+		PIKO_PINNED=$(jq -r '(.Piko.stable // .Piko.any) // ""' <<<"$overrides_by_channel")
+	fi
+fi
+export PIKO_PINNED
 
 if [ "${2-}" = "--config-update" ]; then
 	config_update
@@ -53,6 +90,37 @@ rm -rf module/bin/*/tmp.*
 for file in "$TEMP_DIR"/*/changelog.md; do
 	[ -f "$file" ] && : >"$file"
 done
+
+# Apply per-table version overrides from the 'binaries' release body, if any.
+# <TableName>=<version> overrides the 'version' field for the matching table
+# when it is set to "auto-from-binaries". Channel-prefixed keys (stable.Foo,
+# dev.Foo) win over unprefixed ones. When the release isn't available or has
+# no per-table entry (e.g. local build, or empty body), fall back to "auto".
+if [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${BIN_BODY:-}" ] && [ "$overrides_by_channel" != "{}" ]; then
+	pr "Applying 'binaries' release overrides"
+	__TOML__=$(jq --argjson o "$overrides_by_channel" --arg c "${BUILD_CHANNEL:-any}" '
+		with_entries(
+			if (.value | type) == "object" and (.value.version // "") == "auto-from-binaries" then
+				(($o[.key][$c] // $o[.key].any) // "") as $v |
+				if $v != "" then
+					.value.version = $v
+				else
+					.value.version = "auto"
+				end
+			else . end
+		)
+	' <<<"$__TOML__")
+else
+	# Replace the sentinel with "auto" so local builds still work without a
+	# 'binaries' release to consult.
+	__TOML__=$(jq '
+		with_entries(
+			if (.value | type) == "object" and (.value.version // "") == "auto-from-binaries" then
+				.value.version = "auto"
+			else . end
+		)
+	' <<<"$__TOML__")
+fi
 
 mkdir -p ${MODULE_TEMPLATE_DIR}/bin/arm64 ${MODULE_TEMPLATE_DIR}/bin/arm ${MODULE_TEMPLATE_DIR}/bin/x86 ${MODULE_TEMPLATE_DIR}/bin/x64
 gh_dl "${MODULE_TEMPLATE_DIR}/bin/arm64/cmpr" "https://github.com/j-hc/cmpr/releases/latest/download/cmpr-arm64-v8a"
@@ -112,6 +180,12 @@ for table_name in $(toml_get_table_names); do
 			app_args[${dl_from}_dlurl]=${app_args[${dl_from}_dlurl]%/}
 			app_args[${dl_from}_dlurl]=${app_args[${dl_from}_dlurl]%download}
 			app_args[${dl_from}_dlurl]=${app_args[${dl_from}_dlurl]%/}
+			if [ "${app_args[${dl_from}_dlurl]}" != "${app_args[${dl_from}_dlurl]/\{version\}/}" ]; then
+				local_ver="${app_args[version]}"
+				if [ -n "$local_ver" ] && [ "$local_ver" != "auto" ] && [ "$local_ver" != "auto-from-binaries" ] && [ "$local_ver" != "latest" ]; then
+					app_args[${dl_from}_dlurl]=${app_args[${dl_from}_dlurl]//\{version\}/$local_ver}
+				fi
+			fi
 			app_args[dl_from]=${dl_from}
 		else
 			app_args[${dl_from}_dlurl]=""

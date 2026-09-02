@@ -11,6 +11,69 @@ if [ "${GITHUB_TOKEN-}" ]; then GH_HEADER="Authorization: token ${GITHUB_TOKEN}"
 NEXT_VER_CODE=${NEXT_VER_CODE:-$(date +'%Y%m%d')}
 OS=$(uname -o)
 
+# Reads the 'binaries' release body from the current repo. Lines of the form
+#   Key=Value
+# override config values. A `Piko=<tag>` line pins the pre-release tag used
+# when patches-version is set to 'dev'. Other lines match table names and set
+# the version for that table (only when version = "auto-from-binaries").
+get_binaries_body() {
+	local repo=${GITHUB_REPOSITORY:-} body
+	[ -n "$repo" ] || return 1
+	body=$(gh_req "https://api.github.com/repos/${repo}/releases/tags/binaries" -) || return 1
+	jq -r '.body // ""' <<<"$body"
+}
+
+# Parses a 'binaries' release body. Each Key=Value line may be prefixed with
+# a channel scope: `stable.Key=...` or `dev.Key=...`. An unprefixed `Key=...`
+# applies to every channel. `Piko=<tag>` is the pre-release tag used when
+# patches-version is set to 'dev'. For each line, prints one JSON object on
+# stdout as `{"key":..., "value":..., "channel":...|"stable"|"dev"|null}`.
+# Comments use '//' anywhere on a line, and '#' only when it begins the line
+# (so values like '12.11.0-release#0' survive). Markdown renders a leading
+# '#' as a heading in GitHub release bodies, so prefer '//' there.
+parse_binaries_overrides() {
+	local body=${1-} line raw_key key value channel
+	[ -n "$body" ] || return 0
+	while IFS= read -r line; do
+		# '//' is an inline comment marker; strip it (and everything after)
+		# to end-of-line. A leading '#' is also a comment marker (full-line),
+		# but only when it's the first non-whitespace character — inline '#'
+		# inside a value must survive.
+		line="${line%%//*}"
+		local trimmed="${line#"${line%%[![:space:]]*}"}"
+		case "$trimmed" in
+			"#"*) line="" ;;
+		esac
+		line="${line#"${line%%[![:space:]]*}"}"
+		line="${line%"${line##*[![:space:]]}"}"
+		[ -n "$line" ] || continue
+		[[ $line == *=* ]] || continue
+		raw_key="${line%%=*}"
+		value="${line#*=}"
+		raw_key="${raw_key%"${raw_key##*[![:space:]]}"}"
+		value="${value#"${value%%[![:space:]]*}"}"
+		value="${value%"${value##*[![:space:]]}"}"
+		[ -n "$raw_key" ] && [ -n "$value" ] || continue
+
+		# Split on the first '.' into a channel prefix and a key.
+		channel=""
+		if [[ $raw_key == *.* ]]; then
+			channel="${raw_key%%.*}"
+			key="${raw_key#*.}"
+		else
+			key="$raw_key"
+		fi
+		case "$channel" in
+			"") channel="null" ;;
+			stable | dev) : ;;
+			*) continue ;; # unknown prefix; ignore to avoid surprises
+		esac
+		[ -n "$key" ] || continue
+
+		jq -nc --arg k "$key" --arg v "$value" --arg c "$channel" '{key:$k,value:$v,channel:$c}'
+	done <<<"$body"
+}
+
 toml_prep() {
 	if [ ! -f "$1" ]; then return 1; fi
 	if [ "${1##*.}" == toml ]; then
@@ -82,9 +145,14 @@ get_prebuilts() {
 
 		local rv_rel="https://api.github.com/repos/${src}/releases" name_ver
 		if [ "$ver" = "dev" ]; then
-			local resp
-			resp=$(gh_req "$rv_rel" -) || return 1
-			ver=$(jq -e -r '.[] | .tag_name' <<<"$resp" | get_highest_ver) || return 1
+			# Piko=<tag> in the 'binaries' release body pins the pre-release tag
+			if [ -n "${PIKO_PINNED:-}" ] && [ "${src%/*}" = "crimera/piko" ]; then
+				ver="$PIKO_PINNED"
+			else
+				local resp
+				resp=$(gh_req "$rv_rel" -) || return 1
+				ver=$(jq -e -r '.[] | .tag_name' <<<"$resp" | get_highest_ver) || return 1
+			fi
 		fi
 		if [ "$ver" = "latest" ]; then
 			rv_rel+="/latest"
@@ -192,7 +260,9 @@ config_update() {
 		else
 			sources["$PATCHES_SRC/$PATCHES_VER"]=0
 			local rv_rel="https://api.github.com/repos/${PATCHES_SRC}/releases"
-			if [ "$PATCHES_VER" = "dev" ]; then
+			if [ "$PATCHES_VER" = "dev" ] && [ -n "${PIKO_PINNED:-}" ]; then
+				last_patches=$(gh_req "$rv_rel/tags/${PIKO_PINNED}" -) || continue
+			elif [ "$PATCHES_VER" = "dev" ]; then
 				last_patches=$(gh_req "$rv_rel" - | jq -e -r '.[0]') || continue
 			elif [ "$PATCHES_VER" = "latest" ]; then
 				last_patches=$(gh_req "$rv_rel/latest" -) || continue
@@ -730,6 +800,9 @@ build_rv() {
 	local patcher_args patched_apk build_mode
 	local rv_brand_f=${args[rv_brand],,}
 	rv_brand_f=${rv_brand_f// /-}
+	if [ -n "${BUILD_CHANNEL:-}" ]; then
+		rv_brand_f="${rv_brand_f}-${BUILD_CHANNEL}"
+	fi
 	if [ "${args[patcher_args]}" ]; then p_patcher_args+=("${args[patcher_args]}"); fi
 	for build_mode in "${build_mode_arr[@]}"; do
 		patcher_args=("${p_patcher_args[@]}")
@@ -790,12 +863,16 @@ build_rv() {
 		module_config "$base_template" "$pkg_name" "$version" "$arch"
 
 		local patches_ver="${patches_jar##*-}"
+		local upj_path="update/${upj}"
+		if [ -n "${BUILD_CHANNEL:-}" ]; then
+			upj_path="update/${BUILD_CHANNEL}/${upj}"
+		fi
 		module_prop \
 			"${args[module_prop_name]}" \
 			"${app_name} ${args[rv_brand]}" \
 			"${version} (patches ${patches_ver})" \
 			"${app_name} ${args[rv_brand]} module" \
-			"https://raw.githubusercontent.com/${GITHUB_REPOSITORY-}/update/${upj}" \
+			"https://raw.githubusercontent.com/${GITHUB_REPOSITORY-}/${upj_path}" \
 			"$base_template"
 
 		local module_output="${app_name_l}-${rv_brand_f}-module-v${version_f}-${arch_f}.zip"
