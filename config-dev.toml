@@ -1,6 +1,7 @@
 enable-module-update = true
 parallel-jobs = 1
 patches-version = "dev"
+cli-version = "dev"
 channel = "dev" # affects release names (e.g. 'piko-dev') and scopes auto-update JSONs to update/dev/
 
 # Stock APK versions and the pinned 'Piko' pre-release tag are read from the
