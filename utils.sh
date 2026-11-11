@@ -840,6 +840,17 @@ build_rv() {
 				zip -d "$stock_apk_to_patch" "lib/x86_64/*" "lib/x86/*" >/dev/null 2>&1 || :
 			fi
 		fi
+		if ! grep -aq "APK Sig Block 42" "$stock_apk_to_patch"; then
+			local sign_op
+			if ! sign_op=$(java -jar "$APKSIGNER" sign --ks ks-p12.keystore \
+				--ks-pass pass:123456789 --key-pass pass:123456789 --ks-key-alias jhc \
+				--out "${stock_apk_to_patch}.signed" "$stock_apk_to_patch" 2>&1); then
+				epr "apksigner error: $sign_op"
+				rm -f "$stock_apk_to_patch" "${stock_apk_to_patch}.signed"
+				return 0
+			fi
+			mv -f "${stock_apk_to_patch}.signed" "$stock_apk_to_patch"
+		fi
 
 		local apk_output="${BUILD_DIR}/${app_name_l}-${rv_brand_f}-v${version_f}-${arch_f}.apk"
 		if [ "${NORB:-}" != true ] || { [ ! -f "$patched_apk" ] && [ ! -f "$apk_output" ]; }; then
