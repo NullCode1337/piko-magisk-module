@@ -891,7 +891,8 @@ build_rv() {
 
 		module_config "$base_template" "$pkg_name" "$version" "$arch"
 
-		local patches_ver="${patches_jar##*-}"
+		local patches_ver="${patches_jar##*/}"
+		patches_ver="${patches_ver##*patches-}"
 		local upj_path="update/${upj}"
 		if [ -n "${BUILD_CHANNEL:-}" ]; then
 			upj_path="update/${BUILD_CHANNEL}/${upj}"
