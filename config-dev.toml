@@ -17,7 +17,7 @@ rv-brand = "Piko"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/x-corp/twitter/"
 uptodown-dlurl = "https://twitter.en.uptodown.com/android"
 direct-dlurl = "https://github.com/NullCode1337/piko-magisk-module/releases/download/binaries/com.twitter.android-{version}-all.apkm"
-build-mode = "module"
+build-mode = "both"
 version = "auto-from-binaries"
 #include-stock = "split"
 

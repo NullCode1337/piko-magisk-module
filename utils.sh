@@ -139,7 +139,7 @@ get_prebuilts() {
 		set -- $src_ver
 		local tag=$1 src=$2 ver=${3-}
 
-		local dir=${src%/*}
+		local dir=${src//\//-}
 		dir=${TEMP_DIR}/${dir,,}-rv
 		[ -d "$dir" ] || mkdir "$dir"
 
@@ -748,6 +748,9 @@ build_rv() {
 	pr "Choosing version '${version}' for ${table}"
 	local version_f=${version// /}
 	version_f=${version_f#v}
+	if [ "$dl_from" = direct ] && [[ ${args[direct_dlurl]} == *'{version}'* ]]; then
+		args[direct_dlurl]=${args[direct_dlurl]//\{version\}/$version_f}
+	fi
 	local stock_apk="${TEMP_DIR}/${pkg_name}-${version_f}-${arch_f}.apk"
 	if [ ! -f "$stock_apk" ]; then
 		for dl_p in "${DL_SRCS[@]}"; do
