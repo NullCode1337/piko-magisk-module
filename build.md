@@ -1,5 +1,5 @@
-Instagram: 439.0.0.37.89  
-Instagram-Clone: 439.0.0.37.89  
+Instagram: 452.1.0.53.64  
+Instagram-Clone: 452.1.0.53.64  
 Twitter: 12.11.0-release.0  
 
 Install [Microg](https://github.com/MorpheApp/MicroG-RE/) for non-root YouTube and YT Music APKs  
