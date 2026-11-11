@@ -1,6 +1,6 @@
 {
   "version": "v452.1.0.53.64 (patches 3.11.1.mpp)",
-  "versionCode": 1,
-  "zipUrl": "https://github.com/NullCode1337/piko-magisk-module/releases/download/1/instagram-clone-piko-module-v452.1.0.53.64-arm64-v8a.zip",
+  "versionCode": 2,
+  "zipUrl": "https://github.com/NullCode1337/piko-magisk-module/releases/download/2/instagram-clone-piko-module-v452.1.0.53.64-arm64-v8a.zip",
   "changelog": "https://raw.githubusercontent.com/NullCode1337/piko-magisk-module/update/build.md"
 }
