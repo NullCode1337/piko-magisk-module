@@ -687,6 +687,7 @@ build_rv() {
 	if [ "${args[excluded_patches]}" ]; then p_patcher_args+=("$(join_args "${args[excluded_patches]}" -d)"); fi
 	if [ "${args[included_patches]}" ]; then p_patcher_args+=("$(join_args "${args[included_patches]}" -e)"); fi
 	[ "${args[exclusive_patches]}" = true ] && p_patcher_args+=("--exclusive")
+	[ "${args[force]}" = true ] && p_patcher_args+=("-f")
 
 	local tried_dl=()
 	if [ "${args[pkg_name]}" ]; then
@@ -726,7 +727,10 @@ build_rv() {
 		p_patcher_args+=("-f")
 	else
 		version=$version_mode
-		p_patcher_args+=("-f")
+		# Do not force compatibility for pinned versions. A single bundle can
+		# contain patches for several variants sharing a package name (e.g.
+		# NewX and old X on com.twitter.android); forcing would apply the
+		# wrong variant's patches. Use `force = true` for unsupported pins.
 	fi
 	if [ $get_latest_ver = "true" ]; then
 		pkgvers=$(get_"${dl_from}"_vers)
