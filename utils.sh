@@ -687,7 +687,7 @@ build_rv() {
 	if [ "${args[excluded_patches]}" ]; then p_patcher_args+=("$(join_args "${args[excluded_patches]}" -d)"); fi
 	if [ "${args[included_patches]}" ]; then p_patcher_args+=("$(join_args "${args[included_patches]}" -e)"); fi
 	[ "${args[exclusive_patches]}" = true ] && p_patcher_args+=("--exclusive")
-	[ "${args[force]}" = true ] && p_patcher_args+=("-f")
+	[ "${args[force]-}" = true ] && p_patcher_args+=("-f")
 
 	local tried_dl=()
 	if [ "${args[pkg_name]}" ]; then
